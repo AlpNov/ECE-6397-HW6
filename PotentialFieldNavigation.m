@@ -16,7 +16,7 @@ function PotentialFieldNavigation
 	%qGoal = rand(numel(linkLen),1)*2*pi; %TODO: some sort of check to make sure this isn't intersecting an obstacle
 	qGoal = [-pi/2;-pi/2];
 	oGoal = computeOrigins(qGoal); %robot goal DH frame origins
-	ptObstacles = [1.5,2;  -0.5,0.5]; %locations of point obstacles
+	ptObstacles = [1.5,2;  -1.5,-3]; %locations of point obstacles
 	
 	
 	alpha = 0.02; %step size for each iteration.
@@ -24,10 +24,10 @@ function PotentialFieldNavigation
 	%	such as the distance to the nearest obstacle or goal
 	
 	%%% Parameters  (students should change these)
-	zeta =   flipud(.1*(1:numel(q))');%vector parameter that scales the forces for each degree-of-freedom
+	zeta =   flipud(0.5*(1:numel(q))');%vector parameter that scales the forces for each degree-of-freedom
 	d = 0.5; %d: the distance that defines the transition from conic toparabolic
 	eta = ones(numel(q),1); %eta: vector parameter that scales the repulsive forces for each degree-of-freedom
-	rhoNot = 1/2; %: defines the distance of influence of the obstacle
+	rhoNot = 0.25; %: defines the distance of influence of the obstacle
 	inLocalMinimum = false;
 	t = 5;  %how many random steps to take?
 	v = pi/10; % maximum random value at each step
@@ -194,14 +194,14 @@ function PotentialFieldNavigation
 		%rhoNot: defines the distance of influence of the obstacle
 		Fvec = zeros(numel(q),2); %Force vector to attract each origin to the goal
 		o = computeOrigins(q); % o is a vector of the origins for DH frames of a planar robot arm.
-		o = [0,0;o];
+		o = [0,0;o]; %add 0,0 as a joint origin to calculate distance from arm to obstacle
 		
 		for i = 1:numel(q) % compute attractive force for each origin
-			err = dist(o(i+1,:),oGoal(i,:));
-			if err < d
-				Fvec(i,:)= -zeta(i)*( o(i+1,:)-oGoal(i,:)  );
+			rho = linedist([o(i,:);o(i+1,:)],pObstacle); %distance to obstacle
+			if rho < rhoNot 
+				Fvec(i,:)= eta(i)*(1/rho-1/rhoNot)*(1/(rho*rho))*(o(i+1,:) - pObstacle);
 			else
-				Fvec(i,:)= -d*zeta(i)*( o(i+1,:)-oGoal(i,:)  )/err;
+				Fvec(i,:)= 0;
 			end
 		end
 	end
@@ -212,6 +212,27 @@ function PotentialFieldNavigation
 	end
 
 	function d = dist(a,b)% norm 2 distance between two vectors
-		d=sum((a-b).^2).^.5;
+		d=sum((a-b).^2)^.5;
+	end
+
+	function d = linedist(lineQ,P) % distance between a line segment 
+		%calculate distance between point P and line segment specified by lineQ
+		%lineQ - 2 points that make up a line
+		%P - point
+		dQ1 = P-lineQ(1,:);
+		dQ2 = P-lineQ(2,:);
+		line = lineQ(2,:) - lineQ(1,:);
+		if ( acos(sum(dQ1.*line)/(norm(dQ1)*norm(line))) > pi/2 )
+			d = norm(dQ1);
+		elseif ( acos(sum(dQ2.*(-line))/(norm(dQ2)*norm(line))) > pi/2 )
+			d = norm(dQ2);
+		else
+			% if 2D lines and point, append 0 for z coordinate for cross product
+			if (numel(line) == 2)
+				d = norm(cross([dQ1 0],[line 0]))/(norm(dQ1)*norm(line));
+			else
+				d = norm(cross(dQ1,line))/(norm(dQ1)*norm(line));
+			end
+		end
 	end
 end
