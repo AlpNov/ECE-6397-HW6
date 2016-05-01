@@ -17,7 +17,7 @@ function PotentialFieldNavigation
 	%qGoal = rand(numel(linkLen),1)*2*pi; %TODO: some sort of check to make sure this isn't intersecting an obstacle
 	qGoal = [-pi/2;-pi/2];
 	oGoal = computeOrigins(qGoal); %robot goal DH frame origins
-	ptObstacles = [1.5,2;  -1.5,-3]; %locations of point obstacles
+	ptObstacles = [2,2;  -sqrt(2),sqrt(2)]; %locations of point obstacles
 	
 	
 	alpha = 0.02; %step size for each iteration.
@@ -27,8 +27,8 @@ function PotentialFieldNavigation
 	%%% Parameters  (students should change these)
 	zeta =   flipud(0.5*(1:numel(q))');%vector parameter that scales the forces for each degree-of-freedom
 	d = 0.5; %d: the distance that defines the transition from conic toparabolic
-	eta = ones(numel(q),1); %eta: vector parameter that scales the repulsive forces for each degree-of-freedom
-	rhoNot = 0.25; %: defines the distance of influence of the obstacle
+	eta = 10*ones(numel(q),1); %eta: vector parameter that scales the repulsive forces for each degree-of-freedom
+	rhoNot = 0.5; %: defines the distance of influence of the obstacle
 	inLocalMinimum = false;
 	t = 5;  %how many random steps to take?
 	v = pi/10; % maximum random value at each step
@@ -115,6 +115,9 @@ function PotentialFieldNavigation
 		% start when more than lmlimit iteration
 		if (iteration > lmlimit)
 			lmcount = 0;
+			%check current configs against previous configs
+			%if err is less than lmerr, increase count
+			%else break, not a local minimum
 			while ( lmcount < lmlimit )
 				if ( norm(qprev(:,end - lmcount) - q) > lmerr )
 					break;
@@ -122,7 +125,8 @@ function PotentialFieldNavigation
 				lmcount = lmcount + 1;
 			end
 			if ( lmcount == lmlimit )
-				fprintf('local minimum\r\n');
+				% fprintf('local minimum\r\n');
+				inLocalMinimum = true;
 			end
 		end
 
@@ -138,11 +142,30 @@ function PotentialFieldNavigation
 			%execute a random walk.  If it results in collision, do not apply
 			%it.
 			qprime = q;
-			for j =1:t
-				qprime = qprime+0;
+			j = 1;
+			while (j < t)
+				qrand = (pi/10)*(numel(q):-1:1)'.*(rand(2,1)-0.5);
+				qprime = qprime+qrand;
+				o = [0,0;computeOrigins(qprime)];
 				%check for collision
+				randcollide = false;
+				for obs = 1:numel(ptObstacles(:,1))
+					for jnt = 1:numel(q)
+						rho = linedist([o(jnt,:);o(jnt+1,:)],ptObstacles(obs,:));
+						if (rho <= rhoNot)
+							randcollide = true;
+						end
+					end
+				end
+
+				if ( ~randcollide )
+					j = j + 1;
+				else
+					qprime = qprime-qrand;
+				end
 			end
 			q = qprime;
+			inLocalMinimum = false;
 		end
 		
 		%pause(0.5)
