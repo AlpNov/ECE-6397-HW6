@@ -13,6 +13,7 @@ function PotentialFieldNavigation
 	linkLen = [2;2;];  %lengths of each link
 	%q = rand(numel(linkLen),1)*2*pi;  %robot configuration (random)
 	q = [pi/2;pi/4]; %robot configuration (set)
+	qprev = q; %start remembering previous config
 	%qGoal = rand(numel(linkLen),1)*2*pi; %TODO: some sort of check to make sure this isn't intersecting an obstacle
 	qGoal = [-pi/2;-pi/2];
 	oGoal = computeOrigins(qGoal); %robot goal DH frame origins
@@ -32,7 +33,12 @@ function PotentialFieldNavigation
 	t = 5;  %how many random steps to take?
 	v = pi/10; % maximum random value at each step
 	IsPolygonObs = false; % if tru, uses polygonal obstacles
-	
+
+	%TODO
+	%new variables, to be sorted later
+	lmlimit = 10; %how many times stuck before local min
+	lmcount = 1; %local min stuck count
+	lmerr = 0.1;	
 	
 	%setup figure showing the robot
 	figure(1);clf;
@@ -106,8 +112,27 @@ function PotentialFieldNavigation
 		q = q+alpha*tau/norm(tau);
 		
 		%TODO Task 3  (5pts) detect a local minimum
-		
-		
+		% start when more than lmlimit iteration
+		if (iteration > lmlimit)
+			lmcount = 0;
+			while ( lmcount < lmlimit )
+				if ( norm(qprev(:,end - lmcount) - q) > lmerr )
+					break;
+				end
+				lmcount = lmcount + 1;
+			end
+			if ( lmcount == lmlimit )
+				fprintf('local minimum\r\n');
+			end
+		end
+
+		%add current config to previous config
+		if ( max(size(qprev)) >= lmlimit )
+			qprev = [qprev(:,2:end) q];
+		else
+			qprev = [qprev q];
+		end
+
 		if inLocalMinimum
 			%TODO: Task 4  (5pts) random walk:
 			%execute a random walk.  If it results in collision, do not apply
